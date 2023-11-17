@@ -3,7 +3,8 @@
 
 
 # 相關連結
-1. VBOX(虛擬機依個人) - https://www.virtualbox.org/
+
+VBOX(虛擬機依個人) - https://www.virtualbox.org/
 
 ```linux版本老師有指定 ubuntu Mate 22.04.3 LTS```
 
