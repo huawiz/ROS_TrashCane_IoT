@@ -1,10 +1,11 @@
 # FJCU_SEDIA_23_IoT
 輔大軟創系 專題
 
-VBOX(虛擬機依個人)
-https://www.virtualbox.org/
 
-linux版本老師有指定 ubuntu Mate 22.04.3 LTS
+# 相關連結
+1. VBOX(虛擬機依個人) - https://www.virtualbox.org/
+
+```linux版本老師有指定 ubuntu Mate 22.04.3 LTS```
 
 linux
 https://ubuntu-mate.org/download/amd64/
