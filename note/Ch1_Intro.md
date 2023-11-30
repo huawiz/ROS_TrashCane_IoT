@@ -40,7 +40,7 @@
 
 - ROS 通訊
 
-  ![image.png](./img/image.png)
+  ![image.png](./img/node2node.png)
 
   ROS 的通訊方式有關於剛剛提到的 Node 與 Master。
 
