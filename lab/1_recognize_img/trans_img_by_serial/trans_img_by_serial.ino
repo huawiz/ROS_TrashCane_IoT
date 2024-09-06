@@ -3,11 +3,7 @@
 #define CAMERA_MODEL_AI_THINKER // 定義相機模型
 #include "camera_pins.h"
 
-void setup() {
-  Serial.begin(921600); // 使用更高的波特率以提高傳輸速度
-  Serial.setDebugOutput(true);
-  Serial.println();
-
+bool initCamera() {
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -28,7 +24,7 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_UXGA;
+  config.frame_size = FRAMESIZE_QVGA;  // 直接设置为 QVGA
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
@@ -38,14 +34,25 @@ void setup() {
   // 相機初始化
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
-    return;
+    Serial.printf("Camera init failed with error 0x%x\n", err);
+    return false;
   }
 
   sensor_t * s = esp_camera_sensor_get();
-  s->set_framesize(s, FRAMESIZE_QVGA);  // 設置較小的幀大小以提高傳輸速度
+  s->set_framesize(s, FRAMESIZE_QVGA);  // 确保设置为 QVGA
 
   Serial.println("Camera Ready!");
+  return true;
+}
+
+void setup() {
+  Serial.begin(921600);
+  Serial.setDebugOutput(true);
+  Serial.println();
+
+  if (!initCamera()) {
+    ESP.restart();  // 如果相机初始化失败，重启 ESP32
+  }
 }
 
 void loop() {
@@ -56,6 +63,9 @@ void loop() {
     return;
   }
 
+  // 发送 JPEG 开始标记
+  Serial.write((uint8_t*)"\xFF\xD8\xFF", 3);
+
   // 發送圖像大小（4字節）
   uint32_t imageSize = fb->len;
   Serial.write((uint8_t *)&imageSize, 4);
@@ -64,6 +74,16 @@ void loop() {
   Serial.write(fb->buf, fb->len);
 
   esp_camera_fb_return(fb);
+
+  // 检查是否有重置命令
+  if (Serial.available() && Serial.read() == 'R') {
+    Serial.println("Resetting camera...");
+    esp_camera_deinit();
+    delay(100);
+    if (!initCamera()) {
+      ESP.restart();
+    }
+  }
 
   // 等待一段時間再捕獲下一幀
   delay(100);
