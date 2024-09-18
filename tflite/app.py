@@ -7,30 +7,29 @@ import struct
 import os
 import tflite_runtime.interpreter as tflite
 
-
-
 def find_esp32_port():
     ports = list(serial.tools.list_ports.comports())
     for port in ports:
-        try:
-            ser = serial.Serial(port.device, 921600, timeout=1)
-            start_time = time.time()
-            while time.time() - start_time < 5:  # 等待最多5秒
-                if ser.in_waiting:
-                    data = ser.read(ser.in_waiting)
-                    if b'\xFF\xD8\xFF' in data:  # 檢測JPEG開始標記
-                        print(f"找到ESP32相機端口: {port.device}")
-                        return ser
-            ser.close()
-        except (OSError, serial.SerialException):
-            pass
+        if "USB" in port.device:  # Most ESP32 boards appear as USB devices on Linux
+            try:
+                ser = serial.Serial(port.device, 921600, timeout=1)
+                start_time = time.time()
+                while time.time() - start_time < 5:  # Wait up to 5 seconds
+                    if ser.in_waiting:
+                        data = ser.read(ser.in_waiting)
+                        if b'\xFF\xD8\xFF' in data:  # Check for JPEG start marker
+                            print(f"Found ESP32 camera port: {port.device}")
+                            return ser
+                ser.close()
+            except (OSError, serial.SerialException):
+                pass
     return None
 
 def find_jpeg_start(ser):
     marker = b'\xFF\xD8\xFF'
     buffer = b''
     start_time = time.time()
-    while time.time() - start_time < 5:  # 設置超時
+    while time.time() - start_time < 5:  # Set timeout
         byte = ser.read(1)
         if not byte:
             continue
@@ -41,22 +40,21 @@ def find_jpeg_start(ser):
 
 def read_image(ser):
     if not find_jpeg_start(ser):
-        raise ValueError("無法找到JPEG開始標記")
+        raise ValueError("Unable to find JPEG start marker")
     
     size_data = ser.read(4)
     if len(size_data) != 4:
-        raise ValueError("無法讀取圖像大小")
+        raise ValueError("Unable to read image size")
     
     size = struct.unpack('<I', size_data)[0]
-    if size > 1000000 or size < 1000:  # 假設圖像大小在1KB到1MB之間
-        raise ValueError(f"無效的圖像大小: {size} 字節")
+    if size > 1000000 or size < 1000:  # Assume image size is between 1KB and 1MB
+        raise ValueError(f"Invalid image size: {size} bytes")
     
     img_data = ser.read(size)
     if len(img_data) != size:
-        raise ValueError(f"圖像數據不完整: 預期 {size} 字節，實際接收 {len(img_data)} 字節")
+        raise ValueError(f"Incomplete image data: expected {size} bytes, received {len(img_data)} bytes")
     
     return img_data
-
 
 def preprocess_image(img_data):
     nparr = np.frombuffer(img_data, np.uint8)
@@ -74,19 +72,19 @@ def main():
     labels_path = os.path.join(current_dir, 'labels.txt')
 
     if not os.path.exists(model_path):
-        raise FileNotFoundError(f"找不到模型文件: {model_path}")
+        raise FileNotFoundError(f"Model file not found: {model_path}")
     
     if not os.path.exists(labels_path):
-        raise FileNotFoundError(f"找不到標籤文件: {labels_path}")
+        raise FileNotFoundError(f"Labels file not found: {labels_path}")
 
-    print(f"模型文件路徑: {model_path}")
-    print(f"標籤文件路徑: {labels_path}")
+    print(f"Model file path: {model_path}")
+    print(f"Labels file path: {labels_path}")
 
-    # 加載 TFLite 模型
+    # Load TFLite model
     interpreter = tflite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
 
-    # 獲取輸入和輸出細節
+    # Get input and output details
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
@@ -95,11 +93,11 @@ def main():
 
     ser = find_esp32_port()
     if not ser:
-        print("未找到ESP32相機端口")
+        print("ESP32 camera port not found")
         return
 
     try:
-        print("串口成功打開")
+        print("Serial port successfully opened")
         cv2.namedWindow("ESP32-CAM Image", cv2.WINDOW_NORMAL)
         
         target_classes = ["1_pet_1", "2_other_7"]
@@ -115,13 +113,13 @@ def main():
                 image = preprocess_image(img_data)
                 cv2.imshow("ESP32-CAM Image", cv2.resize(cv2.imdecode(np.frombuffer(img_data, np.uint8), cv2.IMREAD_COLOR), (224, 224)))
                 
-                # 設置輸入張量
+                # Set input tensor
                 interpreter.set_tensor(input_details[0]['index'], image)
 
-                # 運行推理
+                # Run inference
                 interpreter.invoke()
 
-                # 獲取輸出張量
+                # Get output tensor
                 output_data = interpreter.get_tensor(output_details[0]['index'])
                 
                 index = np.argmax(output_data)
@@ -138,30 +136,30 @@ def main():
                 if current_time - last_reset_time >= detection_interval:
                     for name, count in class_counts.items():
                         if count >= threshold:
-                            print(f"在過去 {detection_interval} 秒內，{name} 被檢測到 {count} 次 (信心分數 >= {confidence_threshold}%)")
+                            print(f"In the past {detection_interval} seconds, {name} was detected {count} times (confidence score >= {confidence_threshold}%)")
                     
                     class_counts = {name: 0 for name in target_classes}
                     last_reset_time = current_time
                 
                 keyboard_input = cv2.waitKey(1) & 0xFF
                 if keyboard_input == 27 or keyboard_input == ord('q'):
-                    print("退出程序")
+                    print("Exiting program")
                     break
             
             except (ValueError, serial.SerialException) as e:
-                print(f"錯誤: {e}")
-                print("嘗試重新同步...")
+                print(f"Error: {e}")
+                print("Attempting to resynchronize...")
                 ser.reset_input_buffer()
                 time.sleep(1)
 
     except Exception as e:
-        print(f"發生錯誤: {e}")
+        print(f"An error occurred: {e}")
     
     finally:
         if ser and ser.is_open:
             ser.close()
         cv2.destroyAllWindows()
-        print("程序結束")
+        print("Program ended")
 
 if __name__ == "__main__":
     main()
