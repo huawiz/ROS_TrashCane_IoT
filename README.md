@@ -12,7 +12,7 @@ Windwos
 1. 拷貝專案
 
 ```
-https://github.com/huawiz/ROS_TrashCane_IoT
+git clone https://github.com/huawiz/ROS_TrashCane_IoT
 ```
 
 2. 設定虛擬執行環境(venv)
