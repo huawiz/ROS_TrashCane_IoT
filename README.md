@@ -37,3 +37,11 @@ pip install -r requirements.txt
 ```
 python ./app/app.py
 ```
+
+## 燒錄esp32-cam
+
+原始程式在./esp32/trans_img_by_serial.ino
+
+使用Arduino燒錄時需用杜邦線將IO0和GND連接，燒錄完成再移除
+
+![alt text](note/S__9584643.jpg)
