@@ -5,7 +5,8 @@
 
 ## 環境
 Python 3.9 (Tensorflow不支援3.12)
-Windwos
+
+Windows
 
 ## 設定
 
