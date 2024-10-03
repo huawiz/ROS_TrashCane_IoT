@@ -9,6 +9,8 @@ from tensorflow.keras.models import load_model
 import tensorflow as tf
 import h5py
 import json
+import requests
+
 def fix_keras_model(model_path):
     with h5py.File(model_path, mode="r+") as f:
         model_config = json.loads(f.attrs.get('model_config'))
@@ -92,6 +94,17 @@ def preprocess_image(img_data):
     image = (image / 127.5) - 1
     return image
 
+def send_command(esp32_ip, command):
+    url = f"http://{esp32_ip}/{command}"
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            print(f"成功發送指令: {command}")
+        else:
+            print(f"發送指令失敗: {command}, 狀態碼: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        print(f"發送指令時發生錯誤: {e}")
+
 def main():
     print(tf.__version__)
     np.set_printoptions(suppress=True)
@@ -124,7 +137,7 @@ def main():
         cv2.namedWindow("ESP32-CAM Image", cv2.WINDOW_NORMAL)
         
         # 初始化計數器和時間
-        target_classes = ["1_pet_1", "2_other_7"]
+        target_classes = ["1_pet_1", "2_other_7","3_object_x"]
         class_counts = {class_name: 0 for class_name in target_classes}
         last_reset_time = time.time()
         detection_interval = 3  # 檢測間隔，單位為秒
@@ -148,12 +161,21 @@ def main():
                 if class_name[2:] in target_classes and np.round(confidence_score * 100) >= confidence_threshold:
                     class_counts[class_name[2:]] += 1
                 
+                ip = "192.168.0.11"
                 # 檢查是否超過檢測間隔
                 current_time = time.time()
                 if current_time - last_reset_time >= detection_interval:
                     for name, count in class_counts.items():
                         if count >= threshold:
-                            print(f"在過去 {detection_interval} 秒內，{name} 被檢測到 {count} 次 (信心分數 >= {confidence_threshold}%)")
+                            if name == "1_pet_1":
+                                print(f"在過去 {detection_interval} 秒內，{name} 被檢測到 {count} 次 (信心分數 >= {confidence_threshold}%)")
+                                send_command(ip,"R")
+                            elif name == "2_other_7":
+                                print(f"在過去 {detection_interval} 秒內，{name} 被檢測到 {count} 次 (信心分數 >= {confidence_threshold}%)")
+                                send_command(ip,"L")
+                            elif name == "3_object_x":
+                                send_command(ip,"OFF")
+                            
                     
                     # 重置計數器和時間
                     class_counts = {name: 0 for name in target_classes}
