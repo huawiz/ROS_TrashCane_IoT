@@ -87,12 +87,56 @@ def read_image(ser):
     return img_data
 
 def preprocess_image(img_data):
-    nparr = np.frombuffer(img_data, np.uint8)
-    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    image = cv2.resize(image, (224, 224), interpolation=cv2.INTER_AREA)
-    image = np.asarray(image, dtype=np.float32).reshape(1, 224, 224, 3)
-    image = (image / 127.5) - 1
-    return image
+    """
+    預處理圖像數據，包含JPEG損壞處理
+    
+    Args:
+        img_data: 原始圖像數據的字節串
+        
+    Returns:
+        處理後的圖像數組
+        
+    Raises:
+        ValueError: 當輸入數據無效或處理過程出錯時
+    """
+    try:
+        # 檢查基本的JPEG標記
+        if not (img_data.startswith(b'\xFF\xD8') and b'\xFF\xD9' in img_data):
+            raise ValueError("無效的JPEG數據格式")
+
+        # 轉換為NumPy數組
+        nparr = np.frombuffer(img_data, np.uint8)
+        if nparr.size == 0:
+            raise ValueError("空的圖像數據")
+
+        # 解碼圖像
+        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError("JPEG數據損壞或無法解碼")
+            
+        # 檢查解碼後的圖像
+        if image.size == 0 or len(image.shape) != 3:
+            raise ValueError("解碼後的圖像無效")
+
+        # 調整圖像大小
+        image = cv2.resize(image, (224, 224), interpolation=cv2.INTER_AREA)
+        
+
+
+        # 轉換為float32並重塑
+        image = np.asarray(image, dtype=np.float32).reshape(1, 224, 224, 3)
+        
+        # 檢查是否有無效值
+        if np.isnan(image).any() or np.isinf(image).any():
+            raise ValueError("圖像包含無效值(NaN或Inf)")
+
+        # 標準化
+        image = (image / 127.5) - 1
+
+        return image
+
+    except Exception as e:
+        raise ValueError(f"圖像處理失敗: {str(e)}")
 
 def send_command(esp32_ip, command):
     url = f"http://{esp32_ip}/{command}"
@@ -137,19 +181,25 @@ def main():
         cv2.namedWindow("ESP32-CAM Image", cv2.WINDOW_NORMAL)
         
         # 初始化計數器和時間
-        target_classes = ["1_pet_1", "2_other_7","3_object_x"]
+        target_classes = ["1_PET_ITEM", "1_PET_SIGN","2_HDPE_ITEM","2_HDPE_SIGN","5_PP_ITEM","5_PP_SIGN","6_PS_ITEM","6_PS_SIGN","0_OTHER"]
         class_counts = {class_name: 0 for class_name in target_classes}
         last_reset_time = time.time()
-        detection_interval = 3  # 檢測間隔，單位為秒
-        threshold = 3  # 在檢測間隔內檢測到的閾值
-        confidence_threshold = 50  # 信心閾值，百分比
+        detection_interval = 5  # 檢測間隔，單位為秒
+        threshold = 7  # 在檢測間隔內檢測到的閾值
+        confidence_threshold = 60  # 信心閾值，百分比
 
         while True:
             try:
+                time.sleep(0.1)
                 img_data = read_image(ser)
                 image = preprocess_image(img_data)
-                cv2.imshow("ESP32-CAM Image", cv2.resize(cv2.imdecode(np.frombuffer(img_data, np.uint8), cv2.IMREAD_COLOR), (224, 224)))
-                
+
+               # 讀取圖像 
+                frame = cv2.imdecode(np.frombuffer(img_data, np.uint8), cv2.IMREAD_COLOR)
+                frame = cv2.flip(frame, -1)  # 上下左右顛倒
+                display_frame = cv2.resize(frame, (800, 800))
+                cv2.imshow("ESP32-CAM Image", display_frame)
+
                 prediction = model.predict(image)
                 index = np.argmax(prediction)
                 class_name = class_names[index].strip()
@@ -161,20 +211,21 @@ def main():
                 if class_name[2:] in target_classes and np.round(confidence_score * 100) >= confidence_threshold:
                     class_counts[class_name[2:]] += 1
                 
-                ip = "192.168.0.11"
+                ip = "192.168.0.39"
                 # 檢查是否超過檢測間隔
                 current_time = time.time()
                 if current_time - last_reset_time >= detection_interval:
                     for name, count in class_counts.items():
                         if count >= threshold:
-                            if name == "1_pet_1":
+                            if name in ["1_PET_ITEM", "1_PET_SIGN", "5_PP_ITEM", "5_PP_SIGN"]:
                                 print(f"在過去 {detection_interval} 秒內，{name} 被檢測到 {count} 次 (信心分數 >= {confidence_threshold}%)")
-                                send_command(ip,"R")
-                            elif name == "2_other_7":
+                                print("開右")
+                               # send_command(ip,"R")
+                            elif name in ["2_HDPE_ITEM", "2_HDPE_SIGN", "6_PS_ITEM", "6_PS_SIGN"]:
                                 print(f"在過去 {detection_interval} 秒內，{name} 被檢測到 {count} 次 (信心分數 >= {confidence_threshold}%)")
-                                send_command(ip,"L")
-                            elif name == "3_object_x":
-                                send_command(ip,"OFF")
+                                print("開左")
+                               # send_command(ip,"L")
+
                             
                     
                     # 重置計數器和時間
