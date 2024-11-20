@@ -151,24 +151,13 @@ class VisionSystem:
         """處理檢測結果"""
         print(f"在過去 {self.detection_interval} 秒內，{class_name} 被檢測到 {count} 次")
         
-        if class_name in ["1_PET_ITEM", "5_PP_ITEM"]:
+        if class_name in ["1_PET_ITEM", "5_PP_ITEM","1_PET_SIGN", "5_PP_SIGN"]:
             print("開右")
-            # self.send_command("R")
-        elif class_name in ["2_HDPE_ITEM", "6_PS_ITEM"]:
+           # self.send_command("R")
+        elif class_name in ["2_HDPE_ITEM", "6_PS_ITEM","2_HDPE_SIGN", "6_PS_SIGN"]:
             print("開左")
-            # self.send_command("L")
-        elif class_name == "0_SIGN":
-            number = self.recognize_number(self.current_frame)
-            if number:
-                print(f"辨識到回收標誌數字: {number}")
-                if number in ["1", "5"]:
-                    print("開右")
-                    # self.send_command("R")
-                elif number in ["2", "6"]:
-                    print("開左")
-                    # self.send_command("L")
-            else:
-                print("未能辨識到有效數字")
+           # self.send_command("L")
+        
 
     def run(self):
         """主要運行循環"""

@@ -1,0 +1,8 @@
+pet_sign
+pet_item
+hdpe_sign
+hdpe_item
+pp_sign
+pp_item
+ps_sign
+ps_item
